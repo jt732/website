@@ -1,0 +1,946 @@
+---
+title: "231 final project"
+subtitle: ""
+author: "Jingtang Sun"
+date: "Fall 2023"
+output:
+    html_document:
+      toc: true
+      toc_float: true
+      code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE,
+                      warning = FALSE,
+                      fig.height = 5,
+                      fig.width = 7)
+```
+
+## Introduction
+
+![](images/231.png){width="395"}
+
+The primary aim of this project is to develop a machine learning model capable of predicting housing prices based on a comprehensive set of features, including location, property characteristics, and economic indicators. By leveraging regression algorithms, the project seeks to determine the relationship between various housing attributes and their effects to housing price.
+
+The research question we aim to address is: Can we predict the housing prices based on the chosen variables using machine learning algorithms? To answer this, we will use regression models, suitable for capturing relationships between multiple input features and a continuous target variable, the housing price.
+
+### Motivation and Inspiration
+
+As a real estate enthusiast and a potential residence of California, I have been intrigued by the dynamics of housing markets and how various factors interplay to determine property values. From the architectural style to the local amenities, each aspect adds a layer of complexity to the valuation process. My fascination lies not only in these individual elements but also in their collective impact on housing prices. This curiosity has led me to explore: What factors majorly influence a property's market value? Can we quantitatively predict these values based on observable characteristics?
+
+This project is inspired by the need for a data-driven approach in the real estate market. Accurate prediction of housing prices is crucial for buyers, sellers, investors, and policy makers. It aids in making informed decisions, understanding market trends, and in policy formulation for housing development.
+
+![](images/3.webp)
+
+### Why is the Model Necessary?
+
+The development of this model is seen as necessary due to the complexity of predicting housing prices, which involves numerous factors. The aim of this predictive model is to offer structured insights based on data, which can provide a better understanding of the relationship between a property's characteristics and its market value. This knowledge has the potential to be of assistance to both buyers and sellers, aiding them in making more informed decisions regarding negotiations and investments. Real estate professionals, including agents and appraisers, may also benefit from the model by using it to enhance the accuracy of property value estimates, thereby improving their service quality.
+
+Furthermore, these models can have broader implications beyond individual transactions. They may potentially contribute to urban planning and the development of housing policies. By gaining a deeper understanding of housing market dynamics and the factors that influence property values, policymakers can make more informed choices regarding housing development, which could ultimately promote growth and sustainability within the real estate sector.
+
+### Data Description
+
+The dataset used in this project is sourced from a comprehensive housing dataset, originating from the 1990 census data, which provides extensive information about various housing properties. It encompasses a wide array of features for each property, including critical variables such as median income, median age, total rooms, total bedrooms, population, households, latitude, longitude, and distances to notable landmarks or cities within California.
+
+This dataset is particularly rich in content and comprises 20,640 observations, making it a substantial resource for analysis. Among the 13 included predictors, all of which are continuous variables, there is a noteworthy focus on variables such as `median_income`, `total_rooms`, `total_bedrooms`, and specially devised distance metrics to prominent Californian landmarks and urban centers, such as `Distance_to_coast`. These variables are anticipated to play a pivotal role in predicting the response variable, which is the `Median_House_Value`.
+
+In terms of geographic coverage, the dataset intentionally includes a diverse range of properties across various locations in California. This geographical diversity allows for a comprehensive analysis of different housing attributes and their influence on housing prices, making it a valuable resource for gaining insights into the California housing market dynamics.
+
+### Project Outline
+
+The objective of this project is to harness machine learning algorithms to predict housing prices with high precision.
+
+-   Data Preprocessing and Exploration
+
+    -   We will begin by pre-processing the California housing dataset from the 1990 census, ensuring that any missing values and unnecessary predictors are addressed to streamline our model's efficiency.
+
+    -   Then, we will engage in exploratory data analysis to discern patterns and relationships within the data, informing our selection of predictor variables.
+
+-   Model Development and Evaluation
+
+    -   Following EDA, we will divide the dataset into training and testing subsets, and a detailed recipe will be formulated, encapsulating all preprocessing steps. This recipe will include data transformation techniques such as normalization, dimensionality reduction through PCA, and encoding of categorical variables if present.
+
+    -   Our methodology will encompass a diverse array of regression models including Linear Regression, Lasso, Polynomial Regression, K-Nearest Neighbors, Elastic Net, Random Forest, and Boosted Trees. This mix will allow us to capture a spectrum of linear and nonlinear relationships.
+
+    -   Model tuning will be conducted using a 5-fold cross-validation strategy, optimizing for the Root Mean Squared Error (RMSE) to evaluate model performance.
+
+    -   Post-tuning, the model demonstrating the lowest RMSE on the validation set will be selected for further testing on the testing data.
+
+-   Results Synthesis
+
+    -   Ultimately, our chosen model will be trained on the full training dataset, and its performance will be assessed on the testing set to gauge its predictive power. The model's effectiveness will be quantified by the RMSE metric, ensuring we have a model that not only fits the training data well but also generalizes effectively to new, unseen data.
+
+-   Interpretation and Conclusion
+
+    -   Upon completion, we will interpret the results, drawing conclusions about the model's performance. Furthemore, we will encapsulate our findings, discussing the implications of our predictive model in the broader context of real estate analytics and decision-making processes.
+    -   This structured approach aims to establish a robust predictive model that can serve as a reliable tool for stakeholders in the real estate market. By following this roadmap, we ensure a rigorous and methodical progression through the model-building process, culminating in a model that is both accurate and insightful.
+
+## Exploratory Data Analysis
+
+### Loading and Exploring Raw Data
+
+```{r}
+# loading packages
+library(tidyverse)
+library(dplyr)
+library(tidymodels)
+library(readr)
+library(kknn)
+library(janitor)
+library(ISLR)
+library(discrim)
+library(glmnet)
+library(corrplot)
+library(xgboost)
+library(vip)
+library(ranger)
+library(ggplot2)
+library(data.table)
+library(visdat)
+library(caret)
+library(lattice)
+```
+
+How big is the original data set?
+
+```{r}
+# import dataset
+data <- read.csv("/Users/jingtangsun/Downloads/California_Houses.csv")
+head(data)
+# num of observations and predictors
+dim(data)
+
+```
+
+20640 observations and 14 variables(one outcome variable)
+
+```{r}
+# check for missing
+missing_data <- is.na(df)
+total_missing_values <- sum(is.na(df))
+print(paste("Total missing values: ", total_missing_values))
+vis_miss(data)
+```
+
+Fortunately, the dataset is devoid of missing values, which simplifies the data preparation phase significantly. The absence of missing data alleviates the need for imputation or deletion strategies, allowing for a more straightforward analysis.
+
+Since the original dataset contains too many observations, it is unnecessary to use all of them for analyzing. Therefore, I decide to take a random sample of 2064, which is 10% of the total dataset to analyze for instead.
+
+```{r}
+
+# Setting the seed for reproducibility
+set.seed(231)
+CA_housing_sample <- sample_n(data, size = 2064)
+
+summary(CA_housing_sample)
+
+head(CA_housing_sample)
+
+dim(CA_housing_sample)
+```
+
+**Basic information about the variables:**
+
+-   Median_House_Value: The values range from \$26,900 to \$500,001, with a median of \$174,150, suggesting a wide disparity in house prices within the dataset. The maximum value could indicate a capping in the data.
+
+-   Median_Income: With a range from 0.4999 to 15.0001 and a median of 3.4207, this indicates a broad range of income levels. Higher incomes are less common, as shown by the mean being greater than the median.
+
+-   Median_Age: The houses range in age from 2 to 52 years. The median age is 29 years, suggesting that the dataset includes a mix of new and older homes.
+
+-   Tot_Rooms and Tot_Bedrooms: These indicate the total number of rooms and bedrooms in the housing units, with a large range observed, pointing to a diversity of housing sizes.
+
+-   Population: A considerable range in population figures suggests that the dataset covers various geographic areas, from sparsely to densely populated.
+
+-   Households: The number of households correlates with population size and also shows a wide range, which is typical for datasets encompassing different community sizes.
+
+-   Latitude and Longitude: These reflect the geographic diversity of the dataset, covering a wide area.
+
+-   Distance to various cities (Los Angeles, San Diego, San Jose, San Francisco): These distances provide context for each location's proximity to major Californian cities, which may influence housing prices due to factors like commute times and urban amenities.
+
+### Correlation Matrix
+
+```{r}
+
+# Calculate the correlation matrix
+correlation_matrix <- cor(CA_housing_sample, use="complete.obs")
+
+# Plot the correlation matrix
+corrplot(correlation_matrix, method = "color", tl.col="black", tl.srt=90)
+
+```
+
+The correlation matrix displays the correlation between the features of within the dataset. A striking observation is the strong positive correlation among variables related to the size and occupancy of homes, such as ***Total_Rooms***, ***Total_Bedrooms***, ***Population***, and ***Households***. This suggests a tendency for larger homes to accommodate more people, a pattern reflective of underlying residential structures. The coordinates, Latitude and Longitude, display strong negative correlations between themselves and with variables like ***Distance_to_SanJose***, ***Distance_to_LA***, ***Distance_to_SanDiego***, and ***Distance_to_SanFrancisco***, which may suggest a geographical pattern in real estate valuation and population distribution. Notably, ***Median_House_Value*** shares a moderate positive correlation with ***Median_Income***, reinforcing the economic intuition that income levels often influence housing affordability and property values. Furthermore, ***Distance_to_LA*** exhibits a strong positive correlation with ***Distance_to_SanDiego***, while ***Distance_to_SanJose*** displays a strong positive correlation with ***Distance_to_SanFrancisco***. This correlation can be attributed to the proximity of LA to San Diego and the proximity of San Jose to San Francisco.
+
+For the blue 4\*4 matrix consist of the four highly positively correlated variables, I decide to employ the Principal component analysis to reduce the dimensionality of my data by combining the four highly inter-correlated variables into a smaller set of uncorrelated components.
+
+### Distribution of response variable
+
+```{r}
+
+ggplot(CA_housing_sample, aes(x = Median_House_Value)) + 
+  geom_density(fill = "orange", alpha = 0.5) + 
+  theme_minimal() + 
+  labs(x = "Median House Value", y = "Density", title = "Density Plot of Median House Value")
+
+```
+
+The density plot reveals a prominent peak within the lower median house value range, suggesting a right-skewed distribution where most of the houses are valued at the lower end of the spectrum.. This peak elucidates that the bulk of the housing data skews towards more modestly priced homes. Consequently, the model has likely been trained on a richer dataset of lower-valued properties, enhancing its predictive precision within this domain due to the abundance of exemplars. However, for properties valued above \$350,000, the dataset becomes sparser. Such paucity in higher-value data points could potentially hinder the model's ability to accurately forecast values in this upper echelon, given the limited learning it has derived from these fewer instances. Nonetheless, tree-based algorithms, which are inherently more robust to varied input distributions, might mitigate this issue to a certain extent by their design.
+
+### Distributions of the other variables
+
+```{r}
+# Loop through each numerical column and create a histogram
+for (col_name in names(data)) {
+  if (is.numeric(data[[col_name]])) {
+    p <- ggplot(CA_housing_sample, aes_string(x=col_name)) + 
+      geom_histogram(bins = 30, fill= "blue2", color="black") +
+      theme_minimal() +
+      labs(title=paste("Histogram of", col_name), x=col_name, y="Frequency")
+    print(p)
+  }
+}
+
+# Median House Value vs. Median Income
+ggplot(CA_housing_sample, aes(x = Median_Income, y = Median_House_Value, color = Median_Age)) +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Median House Value vs. Median Income",
+       x = "Median Income",
+       y = "Median House Value")
+```
+
+**findings:**
+
+-   Distribution of Median House Value: Already discovered from the density plot.
+
+-   Distribution of Median Income: Indicates a varied income range among the population, with a concentration towards the lower end.
+
+-   Distribution of Median Age: Reflects a broad distribution of house ages, with a notable number of newer and older properties.
+
+-   Distribution of Population: Displays a wide range, suggesting the dataset includes areas with varied population densities.
+
+-   Distribution of Total Rooms and Total Bedrooms: Both show wide ranges, indicating diversity in house sizes.
+
+-   Distribution of Distance to Coast: Reveals that many properties are located at a considerable distance from the coast, with some closer proximity.
+
+A common hypothesis is that areas with higher median incomes will also have higher median house values due to the greater purchasing power of residents. Therefore, I create a scatter plot of Median House Value vs. Median Income to see the potential relationship between the median income of an area and the value of houses.
+
+-   Median House Value vs. Median Income: The scatter plot reveals a positive correlation where higher median incomes are generally associated with higher median house values, suggesting income's influence on housing prices. The data clusters more densely at lower income and value levels, dispersing with increased income, implying that other factors may drive house value variability at higher incomes. The color-coded median age of houses, represented across the income spectrum, indicates that age alone may not significantly affect house values. A noticeable cap on house values suggests a possible upper limit in the data, while outliers---particularly where low income corresponds to high house values---hint at exceptional cases where factors like historical or cultural significance might play a role.
+
+### Principal component analysis(PCA)
+
+Principal Component Analysis (PCA) is a dimensionality reduction technique used in statistics and machine learning. Its primary goal is to simplify complex data by transforming it into a lower-dimensional form while preserving the most important information. PCA identifies new variables, known as principal components, that are linear combinations of the original features. These components capture the maximum variance in the data, making them useful for data compression, visualization, and feature selection. By reducing dimensionality, PCA can help simplify data analysis and improve the efficiency and interpretability of machine learning models.
+
+```{r}
+housing_pca <- prcomp(CA_housing_sample[, c("Tot_Rooms", "Tot_Bedrooms", "Population", "Households")], scale. = TRUE)
+summary(housing_pca)
+
+eigenvalues <- housing_pca$sdev^2  # Squaring the standard deviations to get eigenvalues
+pct_of_variance <- eigenvalues / sum(eigenvalues)
+
+# Visualize proportion of variance explained
+plot(pct_of_variance, xlab = "Principal Component", ylab = "Proportion of Variance Explained",
+     type = "b", pch = 19)
+abline(h = 0.01, col = "red", lty = 2)  # This adds a horizontal line at 1% variance explained
+
+```
+
+Since ***Total_Rooms***, ***Total_Bedrooms***, ***Population***, and ***Households*** are highly positively correlated, I perform a PCA on these four variables. Based on the summary and the plot, since PC1 already explains a very high proportion of the variance (about 93.96%), therefore, I intend to use PC1 to substitute the four variables when setting up the recipe.
+
+## Setting up for the Models
+
+### Data Split
+
+For this dataset, a 70/30 split has been employed, allocating a significant portion of the data for training the model, while reserving 30% for validation purposes. This allocation ensures that the model is exposed to a comprehensive range of training examples, enhancing its learning capability. Simultaneously, the testing set remains unutilized during the training phase, ensuring it provides an unbiased evaluation of the model's predictive accuracy. To maintain the consistency of our training/testing sets each time we re-run the code, we will set a random seed. Additionally, I stratify the split based on the response variable, `Median_House_Value`, to ensure that both our training and testing sets have a similar distribution of the response variable. 
+
+```{r}
+# Splitting the data (70/30 split, stratify on popularity)
+CA_split <- initial_split(CA_housing_sample, prop = 0.7, strata = Median_House_Value)
+train_data <- training(CA_split)
+test_data <- testing(CA_split)
+
+# check size
+dim(train_data)
+dim(test_data)
+
+```
+
+### Building our Recipe
+
+In our endeavor to forecast housing prices, we have established a uniform methodology for all our regression models, given that the same predictors, modeling conditions, and the continuous target variable, housing price, are used throughout. Each model will process this established procedure differently, applying its own set of algorithms and analytics to interpret the data. This standardized approach guarantees a common foundation for all models, ensuring that any variances in predictive accuracy can be ascribed to the distinct analytical methods intrinsic to each model, thus enabling an impartial comparison of their effectiveness.
+
+Based on the result I found from the PCA on the four variables, I utilize the **`step_pca()`** function to transform the four features that show high positive correlation into one principal component. By consolidating these into a single principal component, I simplify the models, reducing multicollinearity and dimensionality without a significant loss of information, while also enhancing computational efficiency.
+
+This preprocessing 'recipe' serves as a foundational protocol, standardizing the transformation of raw data into a format that is conducive for our regression models to accurately ascertain the relationship between housing attributes and prices.
+
+```{r}
+# Example recipe setup
+recipe <- recipe(Median_House_Value ~ ., data = train_data) %>%
+  step_dummy(all_nominal()) %>% # dummy coding nominal variables
+  step_center(all_predictors()) %>% # standardizing our predictors
+  step_scale(all_predictors()) %>% 
+  step_pca(Tot_Rooms, Tot_Bedrooms, Population, Households, num_comp = 1)
+
+prep(recipe) %>% bake(train_data)
+
+```
+
+### K-Fold Cross Validation
+
+As we delve deeper into our housing price prediction project, we approach the crucial stage of implementing k-fold cross-validation. This technique is pivotal in our machine learning pipeline, enabling us to assess the robustness and predictive accuracy of our models. K-fold cross-validation works by partitioning the original dataset into k equally sized subsets. In each iteration, one subset is held back as the validation set, while the remaining k-1 subsets are used for training. This procedure is cycled through k times, with each of the k subsets serving as the validation data once. Such rigorous validation ensures that our models are not only well-trained but also thoroughly tested, improving the likelihood of making accurate predictions when faced with new data.
+
+In our case, the k-fold cross-validation will be stratified based on the Median House Value, ensuring that each fold is representative of the whole. We aim to use 5 folds for this stratified cross-validation process, which provides a balance between computational efficiency and validation thoroughness since we already have a bunch of data.
+
+```{r}
+cv_folds <- vfold_cv(train_data, v = 5, strata = Median_House_Value) 
+```
+
+## Model Building
+
+As we advance into the core phase of our housing price prediction project, we begin constructing our models. Aware of the computational demands, we take proactive measures to save the outcomes, preventing the need to re-execute models upon subsequent project interactions. We opt for the Root Mean Squared Error (RMSE) as our evaluative benchmark due to its widespread application in regression analysis, gauging the average magnitude of prediction errors, hence serving as an indicator of model precision---the lower the RMSE, the more accurate the model.
+
+The earlier standardization of our dataset is particularly significant in this context. By equalizing the scale of our features, RMSE can more accurately reflect discrepancies between predicted and actual values, thereby enhancing the relevance of our findings.
+
+In this segment of our project, we will deploy several regression methods on our housing dataset. The intent is to maximize our predictive accuracy. We will delve deeply into the analysis of the top-performing models, focusing our efforts on refining the most effective approaches.
+
+The Model Building Process Our model building initiative will unfurl through the ensuing steps:
+
+1.  **Initial Model Configuration**: We begin by designating the model type, the computational engine, and the mode---'regression' to correlate with our target of predicting housing prices, a continuous variable.
+
+2.  **Workflow Construction**: This step integrates the chosen model and our preprocessed recipe, crafting a seamless workflow to prepare for training and evaluation.
+
+3.  **Hyperparameter Tuning Preparation**: For models that necessitate fine-tuning, such as K-Nearest Neighbors and Random Forest, we establish a hyperparameter grid. Models like the Linear Regression, which require no tuning, will skip this stage.
+
+4.  **Hyperparameter Grid Setup**: We outline the various hyperparameters and their respective ranges, establishing the scope of our tuning expedition.
+
+5.  **Model Tuning Execution**: With the grid in place, we embark on tuning, navigating through the hyperparameter space to identify the configuration that delivers optimal RMSE performance.
+
+6.  **Model Results Preservation**: The results are meticulously saved, allowing for future retrieval without the need for reprocessing.
+
+7.  **RMSE Computation and Storage**: We compute the RMSE for each model iteration, archiving these values for comparative analysis.
+
+8.  **Best Model Selection and Workflow Finalization**: Post-tuning, we pinpoint the most effective model based on RMSE and solidify our workflow with these parameters.
+
+9.  **Model Training on Dataset**: The finalized model is trained using our curated dataset, adapting to the intricacies within our training data.
+
+### Linear Regression
+
+As one of the introductory models in machine learning, linear regression was the first model that came to mind, primarily due to the nature of my predictors, which are predominantly numeric and largely continuous. Linear regression seemed like a logical choice to include in my set of models. Its simplicity and straightforwardness in constructing a linear model appealed to me, especially when compared to the complexity of other methods in the machine learning toolkit.
+
+```{r}
+# LINEAR REGRESSION 
+lm_model <- linear_reg() %>% 
+  set_engine("lm")
+
+# workflow
+lm_workflow <- workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(recipe)
+
+```
+
+### Polynomial Regression
+
+Polynomial regression is a form of regression analysis where the relationship between the independent variable and the dependent variable is modeled as an nth degree polynomial. This flexibility allows it to capture non-linear relationships more effectively than a simple linear model, which seems particularly relevant for your dataset involving complex factors influencing housing prices.
+
+```{r eval = FALSE}
+# POLYNOMIAL REGRESSION
+# Adjusting the recipe because the tuning parameter must be added in the recipe for polynomial regression
+
+# Set up the recipe
+housing_recipe <- recipe(Median_House_Value ~ ., data = CA_housing_sample) %>%
+  step_normalize(all_predictors()) %>% 
+  step_nzv(all_predictors()) %>% 
+  step_pca(Tot_Rooms, Tot_Bedrooms, Population, Households, num_comp = 1) %>%
+  step_poly(all_predictors(), degree = tune()) 
+
+
+# Specify the model using a linear regression for polynomial terms
+poly_spec <- linear_reg() %>%
+  set_mode("regression") %>%
+  set_engine("lm")
+
+# Create the workflow
+poly_wf <- workflow() %>%
+  add_model(poly_spec) %>%
+  add_recipe(housing_recipe)
+
+# Set up the tuning grid for the polynomial degree
+degree_grid <- grid_regular(degree(range = c(1, 5)), levels = 5)
+
+
+# Tune the model
+poly_tuned <- tune_grid(
+  poly_wf,
+  resamples = cv_folds,
+  grid = degree_grid
+)
+
+# collect_metrics(poly_tuned)
+# save tuned model
+write_rds(poly_tuned, file = "results/tuned/poly1.rds")
+
+
+```
+
+### K-Nearest Neighbors
+
+KNN is inherently suited for datasets where the prediction can be made based on the proximity or similarity of the data points. Given the nature of my housing market dataset, which likely includes numerous variables influencing housing prices, KNN can be particularly effective in identifying patterns by examining the nearest neighbors in the data space. The KNN model's performance can be finely tuned by adjusting the number of neighbors considered for making predictions. This flexibility allows me to optimize the model specifically for my dataset, ensuring that it captures the relevant trends and relationships effectively.
+
+![](images/8.webp){width="542"}
+
+```{r eval=FALSE}
+# K NEAREST NEIGHBORS
+# Tuning the number of neighbors
+knn_model <- nearest_neighbor(neighbors = tune()) %>% 
+  set_mode("regression") %>% 
+  set_engine("kknn")
+
+# workflow
+knn_workflow <- workflow() %>% 
+  add_model(knn_model) %>% 
+  add_recipe(recipe)
+
+# tuning grid
+knn_grid <- grid_regular(neighbors(range = c(1,10)), levels = 10)
+
+# tune model
+knn_tuned <- tune_grid(
+  knn_workflow,
+  resamples = cv_folds,
+  grid = knn_grid
+)
+
+# save tuned result
+write_rds(knn_tuned, file = "results/tuned/knn1.rds")
+```
+
+### Elastic Net Regression
+
+Elastic Net Regression is a regression technique that combines the properties of both Lasso and Ridge regression. It is well-suited for my project due to its ability to handle a large number of predictors, manage multicollinearity, and its flexibility in tuning to optimize model performance.
+
+```{r}
+# ELASTIC NET
+# Tuning penalty and mixture
+elastic_spec <- linear_reg(penalty = tune(), 
+                           mixture = tune()) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet")
+
+# workflow
+elastic_workflow <- workflow() %>% 
+  add_recipe(recipe) %>% 
+  add_model(elastic_spec)
+
+# tuning grid
+elastic_grid <- grid_regular(penalty(range = c(0, 1),
+                                     trans = identity_trans()),
+                             mixture(range = c(0, 1)),
+                             levels = 10)
+
+# tune model
+elastic_tuned <- tune_grid(
+  elastic_workflow,
+  resamples = cv_folds,
+  grid = elastic_grid
+)
+
+# save the tuned result
+write_rds(elastic_tuned, file = "results/tuned/elastic1.rds")
+```
+
+### Lasso Regression
+
+Elastic Net, with its dual regularization, is indeed a superset that encompasses Lasso's feature selection capabilities. However, opting to employ Lasso alongside Elastic Net provides a multifaceted understanding of the model's behavior on the dataset.
+
+-   **Benchmarking with Lasso and Elastic Net:**
+    -   Lasso serves as a benchmark to compare against Elastic Net, a more complex model that includes Lasso as a special case.
+-   **Interpretability:**
+    -   Lasso encourages sparsity by forcing more coefficients to zero, leading to a potentially more interpretable model.
+-   **Computational Complexity:**
+    -   Tuning Elastic Net is computationally more complex, requiring the adjustment of two hyperparameters (the penalty and the mix of L1 and L2 regularization). In contrast, Lasso only requires tuning the penalty parameter, a simpler option when computational resources are limited.
+-   **Model Behavior Insights:**
+    -   If Lasso and Elastic Net perform similarly, the additional complexity of Elastic Net might be unnecessary.
+-   **Comparative Analysis:**
+    -   Using Lasso as a standalone model provides a baseline for assessing the incremental benefits of Elastic Net's L1 and L2 penalty blend.
+    -   This comparison can reveal if Elastic Net's complexity leads to proportional improvements in predictive accuracy.
+
+```{r eval = FALSE}
+# LASSO REGRESSION
+# Tuning penalty and setting mixture to 1 to specify lasso
+lasso_spec <- linear_reg(penalty = tune(), 
+                         mixture = 1) %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet")
+
+# workflow
+lasso_workflow <- workflow() %>% 
+  add_recipe(recipe) %>% 
+  add_model(lasso_spec)
+
+# tuning grid
+penalty_grid <- grid_regular(penalty(), levels = 50)
+
+# tune model
+lasso_tuned <- tune_grid(
+  lasso_workflow,
+  resamples = cv_folds,
+  grid = penalty_grid
+)
+
+# save the tuned result
+write_rds(lasso_tuned, file = "results/tuned/lasso1.rds")
+```
+
+### Random Forest Model
+
+The Random Forest model proves to be an excellent choice due to its ensemble learning technique, which combines numerous decision trees to enhance prediction accuracy, and well-adaptability to most kind of data. This model effectively addresses the overfitting issue common in individual decision trees by averaging their predictions. Its suitability for my dataset is further emphasized by its ability to handle a wide range of predictors, making it ideal for the complex and varied data in the housing market. The Random Forest algorithm's strength lies in its aggregation of multiple classifiers, significantly improving its overall performance. Nevertheless, a key consideration with Random Forest is the necessity for meticulous tuning. This tuning process is crucial and involves carefully adjusting parameters such as the number of trees in the forest and their depth, ensuring the model is neither too simple nor excessively complex. A notable challenge of the tuning process is that it can be time-consuming, which is also considered a drawback of the method.
+
+A visualization of its process:
+
+![](images/4.png){width="518"}
+
+```{r}
+
+# RANDOM FOREST
+# Tuning mtry (number of predictors), trees, and min_n (number of minimum values in each node)
+rf_spec <- rand_forest(mtry = tune(), 
+                       trees = tune(), 
+                       min_n = tune()) %>% 
+  set_engine("ranger", importance = "impurity") %>% 
+  set_mode("regression")
+
+# workflow
+rf_workflow <- workflow() %>% 
+  add_recipe(recipe) %>% 
+  add_model(rf_spec)
+
+# # tuning grid
+# 
+# rf_grid <- grid_regular(mtry(range = c(1, 5)),
+#                         trees(range = c(200, 600)),
+#                         min_n(range = c(5, 20)),
+#                         levels = 5)
+# 
+# # tune model
+# rf_tuned <- tune_grid(
+#   rf_workflow,
+#   resamples = cv_folds,
+#   grid = rf_grid
+# )
+# 
+# # save the tuned model
+# write_rds(rf_tuned, file = "results/tuned/rf1.rds")
+```
+
+-   `mrty` refers to the number of variables to sample as candidates at each split when building the trees。
+-   `trees` is the total number of trees that the forest will have.
+-   `min_n` is the minimum number of observations(data points) in a node that are required for the node to be split further.
+
+For `mtry`, I choose the number of 5 since I have 11 predictors. Normally, we choose m \<= p/2.
+
+### Boosted Trees
+
+"Boosted trees" is a strong model similar to random forest, celebrated for their high accuracy and iterative refinement. This model excels by correcting its predecessors' errors, enhancing performance with each additional tree. The crux of leveraging boosted trees effectively lies in the art of hyperparameter tuning---balancing the number of trees against the depth of each tree and the learning rate---to prevent overfitting while capturing complex data relationships. Although computationally intensive, the diligence invested in fine-tuning these parameters can pay off handsomely, as boosted trees are adept at unraveling intricate patterns, making them a formidable choice for a vast spectrum of predictive tasks.
+
+```{r}
+# BOOSTED TREES
+# Tuning trees, learn_rate (the learning rate), and min_n
+boosted_spec <- boost_tree(trees = tune(),
+                           learn_rate = tune(),
+                           mtry = tune()) %>%
+  set_engine("xgboost") %>%
+  set_mode("regression")
+
+# workflow
+boosted_workflow <- workflow() %>% 
+  add_recipe(recipe) %>% 
+  add_model(boosted_spec)
+
+# # tuning grid
+# boosted_grid <- grid_regular(mtry(range = c(1, 6)),
+#                         trees(range = c(200, 600)),
+#                         learn_rate(range = c(-1, 0)),
+#                         levels = 5)
+# 
+# # tune model
+# boosted_tuned <- tune_grid(
+#   boosted_workflow,
+#   resamples = cv_folds,
+#   grid = boosted_grid
+# )
+# 
+# # save the tuned result
+# write_rds(boosted_tuned, file = "results/tuned/boosted1.rds")
+```
+
+## Model Results
+
+Let's delve into the results and see which model have performed the best!
+
+![](images/6.webp){width="452"}
+
+### Calculating and Comparing RMSE
+
+First, let's load the results back in.
+
+```{r}
+# LASSO REGRESSION
+lasso_tuned <- read_rds(file = "results/tuned/lasso1.rds")
+
+# POLYNOMIAL REGRESSION
+poly_tuned <- read_rds(file = "results/tuned/poly1.rds")
+
+# K NEAREST NEIGHBORS
+knn_tuned <- read_rds(file = "results/tuned/knn1.rds")
+
+# ELASTIC NET
+elastic_tuned <- read_rds(file = "results/tuned/elastic1.rds")
+
+# RANDOM FOREST
+rf_tuned <- read_rds(file = "results/tuned/rf1.rds")  
+
+# BOOSTED TREES
+boosted_tuned <- read_rds(file = "results/tuned/boosted1.rds")
+```
+
+Then we calculate the RMSE and compile these metrics into a tibble. The data frame will offer a clear comparison of each model's performance.
+
+```{r}
+# LINEAR REGRESSION
+# Fitting the linear regression to the folds first (since it had no tuning)
+lm_fit <- fit_resamples(lm_workflow, resamples = cv_folds)
+lm_rmse <- lm_fit %>%
+  collect_metrics() %>%
+  filter(.metric == 'rmse')
+
+# LASSO REGRESSION
+lasso_rmse <- lasso_tuned %>%
+  collect_metrics() %>%
+  filter(.metric == "rmse")
+
+# POLYNOMIAL REGRESSION
+poly_rmse <- poly_tuned %>%
+  collect_metrics() %>%
+  filter(.metric == "rmse")
+
+# K NEAREST NEIGHBORS
+knn_rmse <- knn_tuned %>%
+  collect_metrics() %>%
+  filter(.metric == "rmse")
+
+# ELASTIC NET
+elastic_rmse <- elastic_tuned %>%
+  collect_metrics() %>%
+  filter(.metric == "rmse")
+
+# RANDOM FOREST
+rf_rmse <- rf_tuned %>%
+  collect_metrics() %>%
+  filter(.metric == "rmse")
+
+# BOOSTED TREES
+boosted_rmse <- boosted_tuned %>%
+  collect_metrics() %>%
+  filter(.metric == "rmse")
+
+
+# Compare RMSE
+# Creating a tibble of all the models and their RMSE
+compare <- tibble(Model = c("Linear Regression", "Lasso Regression", 
+                                   "Polynomial Regression", "K Nearest Neighbors", 
+                                   "Elastic Net", "Random Forest", "Boosted Trees"), 
+                         RMSE = c(mean(lm_rmse$mean), mean(lasso_rmse$mean),
+                                  mean(poly_rmse$mean), mean(knn_rmse$mean),
+                                  mean(elastic_rmse$mean), mean(rf_rmse$mean),
+                                  mean(boosted_rmse$mean)))
+
+# Arranging by lowest RMSE
+final_compare <- compare %>% 
+  arrange(RMSE)
+
+final_compare
+```
+
+Computing the Root Mean Square Error (RMSE) for each model's prediction on the validation set will provide us with a quantitative measure of how well each model is performing. RMSE provides insight into the typical prediction errors made by the system, with a lower value signifying superior performance.
+
+Here is a visualization of the results:
+
+```{r}
+## Visual RMSE Comparison
+# Creating a data frame of the model RMSE's so we can plot
+all_models <- data.frame(Model = c("Linear", "Lasso", 
+                                   "Polynomia", "KNN", 
+                                   "Elastic Net", "Random Forest", "Boosted Trees"),
+                         RMSE = c(mean(lm_rmse$mean), mean(lasso_rmse$mean), 
+                                  mean(poly_rmse$mean), mean(knn_rmse$mean), 
+                                  mean(elastic_rmse$mean), mean(rf_rmse$mean), 
+                                  mean(boosted_rmse$mean)))
+
+# Creating a line plot of the RMSE values
+ggplot(all_models, aes(x=Model, y=RMSE, group=1)) +
+  geom_line(color="purple")+
+  geom_point()
+```
+
+From the graph, we can tell that the top three models are **Random Forest**, **Boosted Trees**, **Polynomial Regression**, which is understandable because **Random Forest** and **Boosted Trees** usually worked well for most of the situations. To my surprise, Elastic Net performs the worst, which indicates that in this particular instance, the combination of L1 and L2 regularization did not translate to better predictive performance compared to the other models. Additionally, Lasso has an RMSE of 71275.87, which is slightly worse than the Linear Regression. This could be due to the regularization term of Lasso which may lead to a simpler but less accurate model in this case.
+
+### Model Autoplots
+
+In R, the autoplot() function is an invaluable tool for visualizing the impact of tuned hyperparameters on a model's performance, with the RMSE metric serving as the yardstick for evaluation. Lower values of RMSE signify superior model performance, offering a clear visual representation of how various hyperparameters influence the effectiveness of the model. This visual aid is especially useful during the model tuning process, as it succinctly conveys the relationship between hyperparameter values and the resultant predictive accuracy.
+
+#### Polynomial Regression
+
+```{r}
+autoplot(poly_tuned, metric = 'rmse') + theme_minimal()
+```
+
+**Observation:**
+
+The graph presents a downward trend in RMSE values as the polynomial degree increases from 1 to 5, indicating that model accuracy is improving with higher degrees. Notably, there is a consistent reduction in RMSE with each incremental increase in polynomial degree, suggesting that the model's ability to capture the underlying pattern in the data is enhanced with added complexity. The smooth decrease in error up to a polynomial degree of 5 implies that, within the range considered, the model has not yet begun to overfit the data. Therefore, a polynomial degree of 5 yields the most precise predictions among the degrees evaluated, suggesting it may be the optimal choice for this particular dataset in balancing complexity with predictive accuracy.
+
+
+#### Boosted Trees
+
+```{r}
+
+autoplot(boosted_tuned, metric = 'rmse') + theme_minimal()
+
+```
+
+**Observation:**
+
+The autoplot for Boosted Trees presents a visual examination of the model's performance across varying learning rates and the number of randomly selected predictors. It is apparent that as the learning rate increases, there is a general trend of increasing RMSE, particularly noticeable at a learning rate of 1. This suggests that a faster learning rate may lead to overfitting, where the model too quickly adapts to the training data, thus impairing its generalization to new data.
+
+Furthermore, the plot indicates that the number of trees, represented by the lines of different colors, does not significantly alter the RMSE once a certain threshold is crossed. Since we can only see the pink line in each sub-plot(which means that they are almost perfectly overlapped), we can deduce that beyond 200 trees, there's minimal improvement in RMSE, implying that adding more trees doesn't necessarily enhance the model's predictive capability.
+
+The variation across the number of randomly selected predictors also demonstrates a relatively stable RMSE, implying that the model's performance is not highly sensitive to this parameter within the explored range. The consistency across different numbers of predictors suggests that the model can maintain its predictive quality even when the set of predictors is varied. However, the optimal number of predictors would still need to be chosen to balance model complexity and performance.
+
+It's important to note that while the minimal node size is not explicitly shown in the plot, its impact on the model's performance can be inferred to be marginal from the consistent RMSE values across different configurations of the other two parameters.
+
+#### Random Forest
+
+```{r}
+autoplot(rf_tuned, metric = 'rmse') + theme_minimal()
+```
+
+**Observation:**
+
+-   **Minimal Node Size**: The panels represent different minimal node sizes used in the Random Forest model. Smaller node sizes allow the tree to grow more complex, while larger sizes restrict the complexity. In general, smaller number of `min_n` tend to have lower RMSE, which indicates that the RMSE value is proportional to `min_n`. Since the lower the RMSE, the better the performance of the model, we can anticipate that the best random forest model will have a `min_n` less than or equal to 5.
+
+-   **Number of Trees**: Increasing the number of trees seems to have a diminishing return on improving RMSE, especially beyond 300 trees. The RMSE decreases slightly as we increase the number of trees from 200 to 300, but then it plateaus, which means that having more trees does not necessarily lead to better model performance. This could indicate that the model stabilizes and adding more trees doesn't contribute to learning additional patterns in the data. Therefore, we can guess that the optimal number of trees should fall within the range of 200 to 300.
+
+-   **Number of Randomly Selected Predictors**: The graph shows a more nuanced relationship between RMSE and the number of predictors. While there isn't a clear trend, we can observe that intermediate values of randomly selected predictors (around 3 to 4) tend to have lower RMSE compared to the extremes. This suggests that a balance is needed in the number of predictors used to achieve the best performance, and `mtry` = 3 seems to be a good choice.
+
+## Model Selection and Performance
+
+As we transition from the broader scope of model selection to the detailed evaluation of performance, our analysis narrows to identify the most effective algorithm. This next phase meticulously scrutinizes each candidate model's accuracy and predictive capabilities. It's a critical juncture where rigorous testing and validation culminate in the determination of a standout performer. Among the contenders, the Random Forest model has emerged as a promising candidate. Its ability to handle complex datasets with a mix of categorical and numerical data positions it well for our task.
+
+### Best Model
+
+Now, let's delve deeper into fine-tuning this model, starting by identifying the optimal hyperparameters that will drive its performance to its peak.
+
+```{r}
+
+show_best(rf_tuned, metric = "rmse", n = 1)
+
+```
+
+As we can see, Random Forest #8 with mtry = 3, 300 trees, and a minimal node size of 5 performed the best with an RMSE of 53735.82. This result aligns perfectly with what we observed when examining the output of the autoplot() function for the random forest model. With this information, we can proceed to finalize our model and workflow.
+
+```{r}
+# best rf model
+best_rf_reg <- rf_tuned %>%
+  select_best(metric = "rmse")
+
+final_rf_model <- finalize_workflow(rf_workflow, best_rf_reg)
+
+```
+
+![](images/5.webp){width="540"}
+
+### Fitting to Training Data
+
+Moving forward, we will deploy our optimally tuned Random Forest model to undergo a final training iteration using the complete training dataset. This exercise is crucial; it immerses the model thoroughly within the dataset's nuances, enabling it to recognize and adapt to the intricacies and patterns inherent within the data. Such extensive retraining primes the model for peak performance, equipping it with a deepened understanding of the training data. Subsequently, this refined model will be well-equipped and ready to be rigorously evaluated against the testing set, where its predictive prowess will be put to the ultimate test.
+
+```{r}
+set.seed(111)
+
+final_rf_fit_train <- fit(final_rf_model, train_data)
+
+```
+
+### Testing the Model
+
+Now, we shall proceed to assess the model's efficacy on the testing dataset, which serves as a surrogate for real-world scenarios. This step is critical to gauge the model's generalization capabilities and its potential to make accurate predictions in practical applications.
+
+```{r}
+## predict for test data
+
+test_predictions <- augment(final_rf_fit_train, new_data = test_data) %>%
+  select(Median_House_Value, starts_with(".pred"))
+
+# extract RMSE
+
+set.seed(923)
+
+final_rf_fit_train %>% augment(test_data) %>% 
+  rmse(.pred, Median_House_Value)
+```
+
+The performance of our Random Forest model on the testing data, as indicated by a Root Mean Squared Error (RMSE) of 51368, surpasses its training data metrics. This denotes a commendable ability to generalize and is indicative of its robustness in predicting median house values. The attainment of a lower RMSE in the testing phase reflects the model's adeptness in yielding predictions that closely mirror the actual figures, thus underscoring its suitability for practical applications. The results affirm that our model has not simply memorized the training data but has learned underlying patterns that translate effectively to unseen data.
+
+To further demonstrate the model's predictive accuracy, we can construct a visual comparison between the predicted and actual median house values. This visualization will not only corroborate the numerical analysis but will also provide an intuitive grasp of the model's performance.
+
+```{r}
+# visualize
+test_predictions %>%
+  ggplot(aes(x = Median_House_Value, y = .pred)) +
+  geom_point(alpha = 0.5) +  # Add points
+  geom_abline(linetype = "dashed", color = "darkgrey") +  # Add a reference line
+  scale_x_continuous(labels = scales::comma) +  # Format the x-axis labels
+  scale_y_continuous(labels = scales::comma) +  # Format the y-axis labels
+  labs(
+    title = "Predicted Values vs. Actual Values",
+    x = "Actual Median House Value",
+    y = "Predicted Median House Value"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text = element_text(color = "black")
+  )
+
+```
+
+**Interpretation:**
+
+-   General Trend:
+
+    -   The final model seems to capture the general trend in the data, as evidenced by the clustering of points along the line of perfect prediction (the dashed line). This indicates that, to some extent, the model's predictions are aligned with the actual values.
+
+-   Accuracy Across Different Values:
+
+    -   For lower and mid-range house values, the model appears to perform well, with predictions closely hugging the line of perfect prediction.
+
+    -   For higher house values, the spread of predictions appears to increase, suggesting that the model's accuracy decreases as the house value increases.
+
+    -   These characteristics are foreseeable due to the large number of observations (median house values) in the original dataset falling within the low and mid-range, while significantly fewer data points are in the high range.
+
+-   Consistency and Bias:
+
+    -   The model seems consistent in its predictions across most of the value range but may have some systematic bias or variance issues, particularly at the extreme ends of the value range.
+
+    -   There is a noticeable deviation from the line of perfect prediction at higher actual values, which might indicate that the model systematically underestimates or overestimates values in this range.
+
+-   Density of Predictions:
+
+    -   There is a higher density of data points in the lower value range, which may be attributed to the model having been trained on more data in this range and, as a result, it may be more reliable in this area.
+
+    -   The sparsity of data points at the higher end of the scale could indicate that the model had fewer data samples to learn from for these values, which could potentially explain the reduced accuracy in this range. This aligns with our findings from the EDA section and was anticipated.
+
+-   Outliers:
+
+    -   The presence of outliers, particularly in the higher value range, suggests that there may be some leverage points or exceptional cases that the model fails to capture accurately.
+
+-   Potential Overfitting or Underfitting:
+
+    -   If the model were overfitting, we might expect to see a tighter clustering around the line, particularly for the training data. Since this is the testing set, the spread of points suggests that the model is generalizing to some degree, which is a good sign.
+
+    -   If the model were underfitting, we might expect the predictions to be poorly aligned with the actual values across all ranges, which does not seem to be the case here.
+
+Overall, the model exhibits a respectable level of predictive capability on the testing set, but there is room for improvement, particularly for values at the higher end of the median house price range. This observation aligns with our findings in the EDA section. To enhance the model's performance, further refinement, feature engineering, or the exploration of alternative modeling approaches may be warranted, particularly for enhancing accuracy in predicting higher-value outcomes. Additionally, increasing the volume of observations within the higher-value range for training is essential.
+
+### Significance of each predictor
+
+```{r}
+# variable importance
+final_rf_fit_train %>% extract_fit_parsnip() %>% 
+  vip(aesthetics = list(fill = "pink2", color = "blue2")) +
+  theme_minimal()
+```
+
+The plot illustrates the relative importance of various predictors in determining the median house value. The feature `Median_Income` is overwhelmingly the most significant predictor, which corresponds with the common hypothesis we introduced at the EDA section, implying that areas with higher median incomes are likely to have more expensive housing. This could be due to higher-income residents affording pricier homes or a reflection of more affluent neighborhoods commanding higher property values. The `Distance_to_coast` is also a notable predictor, suggesting that properties closer to the coast are valued higher, possibly due to the desirability of coastal living or access to beaches. Other geographical features like `Distance_to_SanFrancisco`, `Distance_to_SanJose`, `Latitude`, and `Longitude` play substantial roles, indicating that proximity to these major cities and specific regional locations are key factors in housing prices. The `Distance_to_LA` and `Distance_to_SanDiego` have a lesser but still significant impact, while `Median_Age` and `PC1`(combination of the four correlated predictors), which might capture aspects of the housing stock and neighborhood characteristics, are less influential. This suggests that while the age of properties and other principal components are considered, economic and spatial factors are more decisive in the housing market.
+
+## Conclusion
+
+In this analysis, our primary objective was to develop a predictive model for California's housing market, with a focus on median house values. We initiated the project by understanding the dataset's structure and then moved on to meticulously clean and prepare the data for analysis. Through exploratory data analysis, we identified key patterns and relationships that laid the foundation for our predictive modeling.
+
+We employed various machine learning algorithms, including Linear and Polynomial Regression, K-Nearest Neighbors, Random Forest, and Boosted Trees, to model our data. We leveraged k-fold cross-validation to ensure our model's stability and prevent overfitting, emphasizing the importance of a model that performs well not just on the training set but also when faced with new, unseen data.
+
+The Random Forest algorithm stood out as the top-performing model, demonstrating its robustness and reliability in predicting housing values. Its effectiveness is notably attributed to its capability to handle the inherent non-linear complexities within the dataset. Our testing confirmed the model's generalizability, as it produced a lower Root Mean Squared Error (RMSE) on the testing set compared to the training set. Nevertheless, it's crucial to acknowledge that attaining a perfect model in machine learning is often an elusive goal. This is precisely why we explore multiple models and tune hyperparameters.
+
+The importance of various predictors was also evaluated, revealing that median income and proximity to the coast are significant factors in housing prices. These findings are crucial for stakeholders in the housing market, as they highlight the economic and geographical features that drive property values.
+
+Despite our model's success, we acknowledge the limitations inherent in any predictive analysis. Future research could benefit from a more extensive dataset, especially for higher-value properties, to further refine the model's accuracy across the entire spectrum of house values. Moreover, incorporating additional variables such as market trends, interest rates, and demographic shifts has the potential to further enhance the model's predictive capabilities. For instance, the presence of prestigious universities like Stanford, UCB, UCLA, UCSB, and others is likely to have a significant impact on the response variable, namely median house values.
+
+In conclusion, this project not only delivered a predictive model for California's housing market but also offered valuable insights into the factors influencing house values. It stands as a testament to the effectiveness of machine learning in real estate valuation and the potential of data-driven approaches in shaping the future of the housing industry.
+
+![](images/7.webp){width="533"}
+
+## Sources/Citation
+
+The dataset is conveniently accessible on Kaggle, and can be downloaded directly using the following link: <https://www.kaggle.com/datasets/fedesoriano/california-housing-prices-data-extra-features>. Kaggle hosts the dataset, making it easy to obtain for analysis.
+
+## Codebook
+
+![](images/Screenshot%202023-12-15%20at%205.01.01%20PM.png)
+
+```{r}
+# # Assuming your data is in a dataframe called df
+# codebook <- data.frame(
+#   Variable = c("Median_House_Value", "Median_Income", "Median_Age",
+#                "Tot_Rooms", "Tot_Bedrooms", "Population",
+#                "Households", "Latitude", "Longitude",
+#                "Distance_to_coast", "Distance_to_LA",
+#                "Distance_to_SanDiego", "Distance_to_SanJose",
+#                "Distance_to_SanFrancisco"),
+#   Description = c("The median value of owner-occupied homes",
+#                   "The median income of households within a block",
+#                   "The median age of houses within a block",
+#                   "Total number of rooms within a block",
+#                   "Total number of bedrooms within a block",
+#                   "Total number of people residing within a block",
+#                   "Total number of households within a block",
+#                   "Geographic latitude of the block",
+#                   "Geographic longitude of the block",
+#                   "Distance to the nearest coast in meters",
+#                   "Distance to Los Angeles in meters",
+#                   "Distance to San Diego in meters",
+#                   "Distance to San Jose in meters",
+#                   "Distance to San Francisco in meters"),
+#   Type = rep("Numeric", 14),
+#   Units = c("Dollars", "Tens of thousands of dollars", "Years",
+#             "Rooms", "Bedrooms", "People",
+#             "Households", "Degrees", "Degrees",
+#             "Meters", "Meters",
+#             "Meters", "Meters",
+#             "Meters"),
+#   SummaryStatistics = apply(data[, c("Median_House_Value", "Median_Income", "Median_Age",
+#                                    "Tot_Rooms", "Tot_Bedrooms", "Population",
+#                                    "Households", "Latitude", "Longitude",
+#                                    "Distance_to_coast", "Distance_to_LA",
+#                                    "Distance_to_SanDiego", "Distance_to_SanJose",
+#                                    "Distance_to_SanFrancisco")], 2, function(x) {
+#                                      paste("Min:", min(x, na.rm = TRUE),
+#                                            "Mean:", mean(x, na.rm = TRUE),
+#                                            "Median:", median(x, na.rm = TRUE),
+#                                            "Max:", max(x, na.rm = TRUE))
+#                                    }),
+#   MissingValues = apply(data[, c("Median_House_Value", "Median_Income", "Median_Age",
+#                                "Tot_Rooms", "Tot_Bedrooms", "Population",
+#                                "Households", "Latitude", "Longitude",
+#                                "Distance_to_coast", "Distance_to_LA",
+#                                "Distance_to_SanDiego", "Distance_to_SanJose",
+#                                "Distance_to_SanFrancisco")], 2, function(x) {
+#                                      sum(is.na(x))
+#                                    })
+# )
+# 
+# # If you want to view the codebook
+# View(codebook)
+# 
+# # save as csv file
+# write.csv(codebook, "codebook.csv", row.names = FALSE)
+```
